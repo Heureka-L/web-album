@@ -233,6 +233,8 @@ def index():
     end_idx = start_idx + per_page
     
     paginated_files = files[start_idx:end_idx]
+    display_end = min(end_idx, total_files)
+    display_start = start_idx + 1 if total_files > 0 else 0
     
     return render_template('index.html',
                          dirs=dirs,
@@ -242,7 +244,9 @@ def index():
                          page=page,
                          per_page=per_page,
                          total_pages=total_pages,
-                         total_files=total_files)
+                         total_files=total_files,
+                         display_start=display_start,
+                         display_end=display_end)
 
 
 @app.route('/login', methods=['GET', 'POST'])

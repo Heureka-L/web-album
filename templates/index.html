@@ -96,27 +96,25 @@
                             {% for file in category_files %}
                              <div class="file-item">
                                 {% if category == '图片' %}
-                                <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link">
-                                     <img src="{{ url_for('get_thumbnail', filename=file.path) }}" 
-                                          class="file-preview" 
+                                <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link" onclick="event.preventDefault(); openFullscreen(this.closest('.file-item')); return false;">
+                                     <img src="{{ url_for('get_thumbnail', filename=file.path) }}"
+                                          class="file-preview"
                                           data-full="{{ url_for('view_file', filename=file.path) }}"
                                           data-name="{{ file.name }}"
                                           data-category="{{ category }}"
                                           alt="{{ file.name }}"
-                                          onclick="event.stopPropagation(); openFullscreen(this.closest('.file-item')); return false;"
                                           onerror="this.src='{{ url_for('view_file', filename=file.path) }}'">
                                      <div class="file-name">{{ file.name }}</div>
                                      <div class="fullscreen-hint">⛶</div>
                                  </a>
                                    {% elif category == '视频' %}
-                                   <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link">
-                                        <img src="{{ url_for('get_thumbnail', filename=file.path) }}" 
-                                             class="file-preview" 
+                                   <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link" onclick="event.preventDefault(); openFullscreen(this.closest('.file-item')); return false;">
+                                        <img src="{{ url_for('get_thumbnail', filename=file.path) }}"
+                                             class="file-preview"
                                              data-full="{{ url_for('view_file', filename=file.path) }}"
                                              data-name="{{ file.name }}"
                                              data-category="{{ category }}"
                                              alt="{{ file.name }}"
-                                             onclick="event.stopPropagation(); openFullscreen(this.closest('.file-item')); return false;"
                                              onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27100%27 height=%27100%27%3E%3Crect width=%27100%27 height=%27100%27 fill=%27%23ddd%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%20text-anchor=%27middle%27 dy=%27.3em%27 font-size=%2740%27%3E🎬%3C/text%3E%3C/svg%27'">
                                         <span class="video-badge">▶</span>
                                         <div class="file-name">{{ file.name }}</div>

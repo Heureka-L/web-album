@@ -168,18 +168,21 @@
                                 <span class="page-current">{{ p }}</span>
                                 {% elif p <= 3 or p > total_pages - 3 or (p >= page - 1 and p <= page + 1) %}
                                 <a href="{{ url_for('index', path=current_path, page=p, per_page=per_page) }}" class="page-link">{{ p }}</a>
-                                {% elif p == 4 or p == total_pages - 3 %}
-                                <span class="page-ellipsis">...</span>
-                                {% endif %}
-                            {% endfor %}
-                        </span>
+                        {% elif p == 4 or p == total_pages - 3 %}
+                        <span class="page-ellipsis">...</span>
+                        {% endif %}
+                    {% endfor %}
+                </span>
 
                         {% if page < total_pages %}
                         <a href="{{ url_for('index', path=current_path, page=page+1, per_page=per_page) }}" class="page-btn">下一页</a>
                         {% else %}
                         <span class="page-btn disabled">下一页</span>
                         {% endif %}
+                    </div>
+                </div>
                 </section>
+                    {% endif %}
             </div>
         </main>
     </div>

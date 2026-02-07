@@ -221,13 +221,28 @@ def get_breadcrumb(relative_path):
 @login_required
 def index():
     base_path = request.args.get('path', '')
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
     dirs, files = list_files(base_path, current_user.id)
     breadcrumb = get_breadcrumb(base_path)
+    
+    total_files = len(files)
+    total_pages = (total_files + per_page - 1) // per_page if total_files > 0 else 1
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    
+    paginated_files = files[start_idx:end_idx]
+    
     return render_template('index.html',
                          dirs=dirs,
-                         files=files,
+                         files=paginated_files,
                          current_path=base_path,
-                         breadcrumb=breadcrumb)
+                         breadcrumb=breadcrumb,
+                         page=page,
+                         per_page=per_page,
+                         total_pages=total_pages,
+                         total_files=total_files)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -427,34 +442,40 @@ def download_file(filename):
 
 @app.route('/thumbnail/<path:filename>')
 @login_required
-def get_video_thumbnail(filename):
+def get_thumbnail(filename):
     ext = os.path.splitext(filename)[1].lower()
     
-    if ext not in ALLOWED_EXTENSIONS['视频']:
-        return redirect(url_for('view_file', filename=filename))
+    if ext in ALLOWED_EXTENSIONS['图片']:
+        thumbnail_filename = os.path.splitext(filename)[0] + '_thumb.jpg'
+    elif ext in ALLOWED_EXTENSIONS['视频']:
+        thumbnail_filename = os.path.splitext(filename)[0] + '.jpg'
+    else:
+        return redirect(url_for('static', filename='style.css'))
     
-    thumbnail_filename = os.path.splitext(filename)[0] + '.jpg'
     thumbnail_path = os.path.join(app.config['THUMBNAIL_FOLDER'], thumbnail_filename)
     
     if not os.path.exists(thumbnail_path):
         upload_folder = get_user_upload_folder(current_user.id)
-        video_path = os.path.join(upload_folder, filename)
+        source_path = os.path.join(upload_folder, filename)
         
-        if not os.path.exists(video_path):
-            video_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        if not os.path.exists(source_path):
+            source_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         
-        if not os.path.exists(video_path):
+        if not os.path.exists(source_path):
             return redirect(url_for('static', filename='style.css'))
         
         try:
             import cv2
-            cap = cv2.VideoCapture(video_path)
+            cap = cv2.VideoCapture(source_path)
             ret, frame = cap.read()
             if ret:
-                cv2.imwrite(thumbnail_path, frame)
+                target_width = 300
+                target_height = 200
+                resized = cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_AREA)
+                cv2.imwrite(thumbnail_path, resized)
             cap.release()
         except Exception as e:
-            print(f"无法生成缩略图: {e}")
+            print(f"无法生成缩略图 {filename}: {e}")
             return redirect(url_for('static', filename='style.css'))
     
     if os.path.exists(thumbnail_path):

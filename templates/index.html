@@ -94,28 +94,30 @@
                         <h3>{{ category }}</h3>
                         <div class="file-grid">
                             {% for file in category_files %}
-                            <div class="file-item">
+                             <div class="file-item">
                                 {% if category == '图片' %}
-                                <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link"
-                                   onclick="openFullscreen(this, 'image'); return false;">
+                                <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link">
                                      <img src="{{ url_for('get_thumbnail', filename=file.path) }}" 
                                           class="file-preview" 
                                           data-full="{{ url_for('view_file', filename=file.path) }}"
                                           data-name="{{ file.name }}"
+                                          data-category="{{ category }}"
                                           alt="{{ file.name }}"
+                                          onclick="event.stopPropagation(); openFullscreen(this.closest('.file-item')); return false;"
                                           onerror="this.src='{{ url_for('view_file', filename=file.path) }}'">
                                      <div class="file-name">{{ file.name }}</div>
                                      <div class="fullscreen-hint">⛶</div>
                                  </a>
-                                  {% elif category == '视频' %}
-                                  <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link">
-                                       <img src="{{ url_for('get_thumbnail', filename=file.path) }}" 
-                                            class="file-preview" 
-                                            data-full="{{ url_for('view_file', filename=file.path) }}"
-                                            data-name="{{ file.name }}"
-                                            alt="{{ file.name }}"
-                                            onclick="event.stopPropagation(); openFullscreen(this.parentElement.parentElement, 'video'); return false;"
-                                            onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27100%27 height=%27100%27%3E%3Crect width=%27100%27 height=%27100%27 fill=%27%23ddd%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%20text-anchor=%27middle%27 dy=%27.3em%27 font-size=%2740%27%3E🎬%3C/text%3E%3C/svg%27'">
+                                   {% elif category == '视频' %}
+                                   <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link">
+                                        <img src="{{ url_for('get_thumbnail', filename=file.path) }}" 
+                                             class="file-preview" 
+                                             data-full="{{ url_for('view_file', filename=file.path) }}"
+                                             data-name="{{ file.name }}"
+                                             data-category="{{ category }}"
+                                             alt="{{ file.name }}"
+                                             onclick="event.stopPropagation(); openFullscreen(this.closest('.file-item')); return false;"
+                                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27100%27 height=%27100%27%3E%3Crect width=%27100%27 height=%27100%27 fill=%27%23ddd%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%20text-anchor=%27middle%27 dy=%27.3em%27 font-size=%2740%27%3E🎬%3C/text%3E%3C/svg%27'">
                                         <span class="video-badge">▶</span>
                                         <div class="file-name">{{ file.name }}</div>
                                         <div class="fullscreen-hint">⛶</div>
@@ -176,37 +178,20 @@
                         <a href="{{ url_for('index', path=current_path, page=page+1, per_page=per_page) }}" class="page-btn">下一页</a>
                         {% else %}
                         <span class="page-btn disabled">下一页</span>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endif %}
+                     {% endif %}
+                </section>
             </div>
         </main>
     </div>
-
-    <div class="fullscreen-view" id="fullscreenView">
-        <div class="fullscreen-content">
-            <button class="fullscreen-back" onclick="closeFullscreen()">×</button>
-            <button class="fullscreen-prev" onclick="navigateFullscreen(-1)">❮</button>
-            <img id="fullscreenImage" src="" alt="">
-            <video id="fullscreenVideo" style="display:none; max-width:90%; max-height:90vh;" controls></video>
-            <button class="fullscreen-next" onclick="navigateFullscreen(1)">❯</button>
-        </div>
-        <div class="fullscreen-info" id="fullscreenInfo"></div>
-    </div>
-
-    <script>
-        function openFullscreen(index, type) {
             allMediaElements = document.querySelectorAll('.file-item');
             
             const mediaFiles = [];
             let currentIndex = 0;
 
             allMediaElements.forEach((elem, idx) => {
-                const preview = elem.querySelector('.file-preview');
                 const fullSrc = elem.querySelector('a')?.getAttribute('data-full');
                 const name = elem.querySelector('a')?.getAttribute('data-name');
-                const category = fullSrc ? (fullSrc.split('.').pop().toLowerCase().match(/^(jpg|jpeg|png|gif|bmp|webp|svg)$/) ? '图片' : '视频') : null;
+                const category = elem.querySelector('a')?.getAttribute('data-category');
 
                 if (fullSrc && name && (category === '图片' || category === '视频')) {
                     mediaFiles.push({
@@ -215,13 +200,16 @@
                         category: category
                     });
                     
-                    if (idx === index) {
+                    if (elem === fileItemElement) {
                         currentIndex = mediaFiles.length - 1;
                     }
                 }
             });
 
-            if (mediaFiles.length === 0) return;
+            if (mediaFiles.length === 0) {
+                alert('没有可查看的文件');
+                return;
+            }
 
             const currentPath = document.querySelector('.breadcrumb a:last-child')?.getAttribute('href')?.split('?path=')?.[1] || '';
             

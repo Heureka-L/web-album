@@ -1,0 +1,57 @@
+#!/usr/bin/expect -f
+
+set timeout 300
+
+spawn ssh root@47.113.204.202
+
+expect {
+    "password:" {
+        send "Lbx375921\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        exp_continue
+    }
+}
+
+expect "#"
+send "python3 --version\r"
+
+expect "#"
+send "apt-get update\r"
+
+expect "#"
+send "apt-get install -y python3 python3-pip python3-venv git\r"
+
+expect "#"
+send "cd /root\r"
+
+expect "#"
+send "[ -d heureka-album ] && cd heureka-album && git pull || git clone git@github.com:Heureka-L/web-album.git heureka-album\r"
+
+expect {
+    "heureka-album" {
+        expect "#"
+        send "cd heureka-album\r"
+    }
+}
+
+expect "#"
+send "python3 -m venv venv\r"
+
+expect "#"
+send "source venv/bin/activate && pip install -r requirements.txt\r"
+
+expect "#"
+send "mkdir -p logs uploads\r"
+
+expect "#"
+send "nohup python3 app.py > logs/app.log 2>&1 &\r"
+
+expect "#"
+send "sleep 2 && curl -I http://localhost:5000\r"
+
+expect "#"
+send "exit\r"
+
+expect eof

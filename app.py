@@ -19,7 +19,7 @@ app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this-in-production'
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 app.config['DATABASE'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.db')
-app.config['THUMBNAIL_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'thumbnails')
+app.config['THUMBNAIL_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'thumbnails', 'cache')
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -34,6 +34,7 @@ ALLOWED_EXTENSIONS = {
 }
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'thumbnails'), exist_ok=True)
 os.makedirs(app.config['THUMBNAIL_FOLDER'], exist_ok=True)
 
 
@@ -469,47 +470,75 @@ def download_file(filename):
 def get_thumbnail(filename):
     ext = os.path.splitext(filename)[1].lower()
     
+    safe_filename = filename.replace(os.sep, '_').replace('/', '_').replace('\\', '_')
+    
     if ext in ALLOWED_EXTENSIONS['图片']:
-        thumbnail_filename = os.path.splitext(filename)[0] + '_thumb.jpg'
+        thumbnail_filename = os.path.splitext(safe_filename)[0] + '_thumb.jpg'
         thumbnail_size = (300, 300)
     elif ext in ALLOWED_EXTENSIONS['视频']:
-        thumbnail_filename = os.path.splitext(filename)[0] + '.jpg'
-        thumbnail_size = (300, 200)
+        thumbnail_filename = os.path.splitext(safe_filename)[0] + '_video.jpg'
+        thumbnail_size = (320, 200)
     else:
         return redirect(url_for('static', filename='style.css'))
     
     thumbnail_path = os.path.join(app.config['THUMBNAIL_FOLDER'], thumbnail_filename)
     
-    if not os.path.exists(thumbnail_path):
-        upload_folder = get_user_upload_folder(current_user.id)
-        source_path = os.path.join(upload_folder, filename)
-        
-        if not os.path.exists(source_path):
-            source_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
-        if not os.path.exists(source_path):
-            return redirect(url_for('static', filename='style.css'))
-        
-        try:
-            import cv2
-            cap = cv2.VideoCapture(source_path)
-            ret, frame = cap.read()
-            if ret:
-                resized = cv2.resize(frame, thumbnail_size, interpolation=cv2.INTER_AREA)
-                cv2.imwrite(thumbnail_path, resized)
-                cap.release()
-            else:
-                cap.release()
-                return redirect(url_for('static', filename='style.css'))
-        except Exception as e:
-            print(f"无法生成缩略图 {filename}: {e}")
-            import traceback
-            traceback.print_exc()
-            return redirect(url_for('static', filename='style.css'))
-    
-    if os.path.exists(thumbnail_path):
+    if os.path.exists(thumbnail_path) and os.path.getsize(thumbnail_path) > 0:
         return send_file(thumbnail_path, mimetype='image/jpeg')
-    else:
+    
+    upload_folder = get_user_upload_folder(current_user.id)
+    source_path = os.path.join(upload_folder, filename)
+    
+    if not os.path.exists(source_path):
+        source_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    
+    if not os.path.exists(source_path):
+        print(f"源文件不存在: {source_path}")
+        return redirect(url_for('static', filename='style.css'))
+    
+    if not os.access(source_path, os.R_OK):
+        print(f"源文件无法读取: {source_path}")
+        return redirect(url_for('static', filename='style.css'))
+    
+    try:
+        import cv2
+        
+        print(f"开始生成缩略图: {source_path} -> {thumbnail_path}")
+        
+        cap = cv2.VideoCapture(source_path)
+        
+        if not cap.isOpened():
+            print(f"无法打开视频: {source_path}")
+            cap.release()
+            return redirect(url_for('static', filename='style.css'))
+        
+        ret, frame = cap.read()
+        
+        if not ret:
+            print(f"无法读取视频帧: {source_path}")
+            cap.release()
+            return redirect(url_for('static', filename='style.css'))
+        
+        resized = cv2.resize(frame, thumbnail_size, interpolation=cv2.INTER_AREA)
+        cv2.imwrite(thumbnail_path, resized)
+        
+        cap.release()
+        
+        if os.path.exists(thumbnail_path) and os.path.getsize(thumbnail_path) > 0:
+            print(f"缩略图生成成功: {thumbnail_path} ({os.path.getsize(thumbnail_path)} bytes)")
+            return send_file(thumbnail_path, mimetype='image/jpeg')
+        else:
+            print(f"缩略图生成失败: {thumbnail_path}")
+            return redirect(url_for('static', filename='style.css'))
+            
+    except Exception as e:
+        print(f"生成缩略图失败 {filename}: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        if os.path.exists(thumbnail_path):
+            os.remove(thumbnail_path)
+        
         return redirect(url_for('static', filename='style.css'))
 
 

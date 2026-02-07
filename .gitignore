@@ -56,3 +56,6 @@ Thumbs.db
 *.pid
 cookies.txt
 nohup.out
+
+# Thumbnails cache
+thumbnails/cache/

@@ -116,20 +116,11 @@
                                            data-name="{{ file.name }}"
                                            alt="{{ file.name }}"
                                            onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27100%27 height=%27100%27%3E%3Crect width=%27100%27 height=%27100%27 fill=%27%23ddd%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%20text-anchor=%27middle%27 dy=%27.3em%27 font-size=%2740%27%3E🎬%3C/text%3E%3C/svg%27'">
-                                      <span class="video-badge">▶</span>
-                                      <div class="file-name">{{ file.name }}</div>
-                                      <div class="fullscreen-hint">⛶</div>
-                                  </a>
-                                 {% elif category == '视频' %}
-                                 <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link">
-                                     <img src="{{ url_for('get_video_thumbnail', filename=file.path) }}" 
-                                          class="file-preview" 
-                                          alt="{{ file.name }}"
-                                          onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27100%27 height=%27100%27%3E%3Crect width=%27100%27 height=%27100%27 fill=%27%23ddd%27/%3E%3Ctext x=%2750%27 y=%2750%27 text-anchor=%27middle%27 dy=%27.3em%27 font-size=%2740%27%3E🎬%3C/text%3E%3C/svg%27'">
-                                     <span class="video-badge">▶</span>
-                                     <div class="file-name">{{ file.name }}</div>
-                                 </a>
-                                {% else %}
+                                       <span class="video-badge">▶</span>
+                                       <div class="file-name">{{ file.name }}</div>
+                                       <div class="fullscreen-hint">⛶</div>
+                                   </a>
+                                 {% else %}
                                 <a href="{{ url_for('download_file', filename=file.path) }}" class="file-link">
                                     <div class="file-icon">
                                         {% if category == '文档' %}📄{% else %}📦{% endif %}

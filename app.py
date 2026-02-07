@@ -222,29 +222,49 @@ def get_breadcrumb(relative_path):
 def index():
     base_path = request.args.get('path', '')
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    per_page = request.args.get('per_page', 100, type=int)
     
     dirs, files = list_files(base_path, current_user.id)
     breadcrumb = get_breadcrumb(base_path)
     
-    total_files = len(files)
-    total_pages = (total_files + per_page - 1) // per_page if total_files > 0 else 1
+    groups = {'图片': [], '视频': [], '文档': [], '其他': []}
+    for file in files:
+        if file['category'] in groups:
+            groups[file['category']].append(file)
+    
+    images = groups['图片']
+    videos = groups['视频']
+    other_files = groups['文档'] + groups['其他']
+    
+    images_per_page = 100
+    videos_per_page = 40
+    
+    image_total_pages = max(1, (len(images) + images_per_page - 1) // images_per_page)
+    video_total_pages = max(1, (len(videos) + videos_per_page - 1) // videos_per_page)
+    
+    all_files = images + videos + other_files
+    total_files = len(all_files)
+    total_pages = max(1, (total_files + per_page - 1) // per_page)
+    
     start_idx = (page - 1) * per_page
     end_idx = start_idx + per_page
     
-    paginated_files = files[start_idx:end_idx]
+    paginated_files = all_files[start_idx:end_idx]
     display_end = min(end_idx, total_files)
     display_start = start_idx + 1 if total_files > 0 else 0
     
     return render_template('index.html',
                          dirs=dirs,
                          files=paginated_files,
+                         groups=groups,
                          current_path=base_path,
                          breadcrumb=breadcrumb,
                          page=page,
                          per_page=per_page,
                          total_pages=total_pages,
                          total_files=total_files,
+                         image_count=len(images),
+                         video_count=len(videos),
                          display_start=display_start,
                          display_end=display_end)
 
@@ -451,8 +471,10 @@ def get_thumbnail(filename):
     
     if ext in ALLOWED_EXTENSIONS['图片']:
         thumbnail_filename = os.path.splitext(filename)[0] + '_thumb.jpg'
+        thumbnail_size = (300, 300)
     elif ext in ALLOWED_EXTENSIONS['视频']:
         thumbnail_filename = os.path.splitext(filename)[0] + '.jpg'
+        thumbnail_size = (300, 200)
     else:
         return redirect(url_for('static', filename='style.css'))
     
@@ -473,13 +495,16 @@ def get_thumbnail(filename):
             cap = cv2.VideoCapture(source_path)
             ret, frame = cap.read()
             if ret:
-                target_width = 300
-                target_height = 200
-                resized = cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_AREA)
+                resized = cv2.resize(frame, thumbnail_size, interpolation=cv2.INTER_AREA)
                 cv2.imwrite(thumbnail_path, resized)
-            cap.release()
+                cap.release()
+            else:
+                cap.release()
+                return redirect(url_for('static', filename='style.css'))
         except Exception as e:
             print(f"无法生成缩略图 {filename}: {e}")
+            import traceback
+            traceback.print_exc()
             return redirect(url_for('static', filename='style.css'))
     
     if os.path.exists(thumbnail_path):

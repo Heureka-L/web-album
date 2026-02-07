@@ -97,22 +97,28 @@
                             <div class="file-item">
                                 {% if category == '图片' %}
                                 <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link"
-                                   onclick="openFullscreen(this); return false;">
+                                   onclick="openFullscreen(this, 'image'); return false;">
                                     <img src="{{ url_for('get_thumbnail', filename=file.path) }}" 
                                          class="file-preview" 
+                                         data-full="{{ url_for('view_file', filename=file.path) }}"
+                                         data-name="{{ file.name }}"
                                          alt="{{ file.name }}"
                                          onerror="this.src='{{ url_for('view_file', filename=file.path) }}'">
                                     <div class="file-name">{{ file.name }}</div>
                                     <div class="fullscreen-hint">⛶</div>
                                 </a>
                                  {% elif category == '视频' %}
-                                 <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link">
+                                 <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link"
+                                    onclick="openFullscreen(this, 'video'); return false;">
                                       <img src="{{ url_for('get_thumbnail', filename=file.path) }}" 
                                            class="file-preview" 
+                                           data-full="{{ url_for('view_file', filename=file.path) }}"
+                                           data-name="{{ file.name }}"
                                            alt="{{ file.name }}"
                                            onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27100%27 height=%27100%27%3E%3Crect width=%27100%27 height=%27100%27 fill=%27%23ddd%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%20text-anchor=%27middle%27 dy=%27.3em%27 font-size=%2740%27%3E🎬%3C/text%3E%3C/svg%27'">
                                       <span class="video-badge">▶</span>
                                       <div class="file-name">{{ file.name }}</div>
+                                      <div class="fullscreen-hint">⛶</div>
                                   </a>
                                  {% elif category == '视频' %}
                                  <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link">
@@ -188,24 +194,45 @@
     </div>
 
     <div class="fullscreen-view" id="fullscreenView">
-        <button class="fullscreen-close" onclick="closeFullscreen()">&times;</button>
-        <button class="fullscreen-prev" onclick="navigateFullscreen(-1)">❮</button>
-        <img id="fullscreenImage" src="" alt="">
-        <button class="fullscreen-next" onclick="navigateFullscreen(1)">❯</button>
+        <div class="fullscreen-content">
+            <button class="fullscreen-back" onclick="closeFullscreen()">×</button>
+            <button class="fullscreen-prev" onclick="navigateFullscreen(-1)">❮</button>
+            <img id="fullscreenImage" src="" alt="">
+            <video id="fullscreenVideo" style="display:none; max-width:90%; max-height:90vh;" controls></video>
+            <button class="fullscreen-next" onclick="navigateFullscreen(1)">❯</button>
+        </div>
         <div class="fullscreen-info" id="fullscreenInfo"></div>
     </div>
 
     <script>
-        function openFullscreen(element) {
+        let currentType = null;
+        let allMediaElements = [];
+
+        function openFullscreen(element, type) {
+            currentType = type;
+            allMediaElements = document.querySelectorAll('.file-item');
+            
             const img = element.querySelector('.file-preview');
-            const link = element.querySelector('a').getAttribute('href');
-            const name = element.querySelector('.file-name').textContent;
+            const fullSrc = element.querySelector('a').getAttribute('data-full');
+            const name = element.querySelector('a').getAttribute('data-name');
 
             const viewer = document.getElementById('fullscreenView');
             const fullImg = document.getElementById('fullscreenImage');
+            const fullVideo = document.getElementById('fullscreenVideo');
             const info = document.getElementById('fullscreenInfo');
 
-            fullImg.src = link;
+            if (type === 'image') {
+                fullImg.src = fullSrc;
+                fullImg.style.display = 'block';
+                fullVideo.style.display = 'none';
+                fullVideo.pause();
+            } else if (type === 'video') {
+                fullVideo.src = fullSrc;
+                fullVideo.style.display = 'block';
+                fullImg.style.display = 'none';
+                fullVideo.play();
+            }
+
             info.textContent = name;
 
             viewer.classList.add('active');
@@ -214,37 +241,75 @@
 
         function closeFullscreen() {
             const viewer = document.getElementById('fullscreenView');
+            const fullImg = document.getElementById('fullscreenImage');
+            const fullVideo = document.getElementById('fullscreenVideo');
+
+            fullVideo.pause();
+            fullVideo.src = '';
+
             viewer.classList.remove('active');
             document.body.style.overflow = '';
+            
+            currentType = null;
+            allMediaElements = [];
         }
 
         function navigateFullscreen(direction) {
-            const images = document.querySelectorAll('.file-item img.file-preview');
-            const currentSrc = document.getElementById('fullscreenImage').src;
-            let currentIndex = 0;
+            const fullImg = document.getElementById('fullscreenImage');
+            const fullVideo = document.getElementById('fullscreenVideo');
+            const info = document.getElementById('fullscreenInfo');
+            
+            const currentSrc = currentType === 'image' ? fullImg.src : fullVideo.src;
+            let currentIndex = -1;
 
-            images.forEach((img, index) => {
-                if (img.src === currentSrc) {
+            allMediaElements.forEach((elem, index) => {
+                const preview = elem.querySelector('.file-preview');
+                const fullSrc = elem.querySelector('a')?.getAttribute('data-full');
+                if (preview && fullSrc && (preview.src === currentSrc || fullSrc === currentSrc)) {
                     currentIndex = index;
                 }
             });
 
-            const newIndex = (currentIndex + direction + images.length) % images.length;
-            const newImg = images[newIndex];
-            const parent = newImg.closest('.file-item');
-            const name = parent.querySelector('.file-name').textContent;
+            if (currentIndex === -1) return;
 
-            document.getElementById('fullscreenImage').src = newImg.src;
-            document.getElementById('fullscreenInfo').textContent = name;
+            const newIndex = (currentIndex + direction + allMediaElements.length) % allMediaElements.length;
+            const newElement = allMediaElements[newIndex];
+            const newSrc = newElement.querySelector('a')?.getAttribute('data-full');
+            const newName = newElement.querySelector('a')?.getAttribute('data-name');
+            const newTypePrefix = newSrc.split('.').pop().toLowerCase().match(/^(jpg|jpeg|png|gif|bmp|webp|svg)$/) ? 'image' : 'video';
+
+            if (currentType === 'image' || newTypePrefix === 'image') {
+                fullImg.src = newSrc;
+                fullImg.style.display = 'block';
+                fullVideo.style.display = 'none';
+                fullVideo.pause();
+            } else {
+                fullVideo.src = newSrc;
+                fullVideo.style.display = 'block';
+                fullImg.style.display = 'none';
+                fullVideo.play();
+            }
+
+            info.textContent = newName;
+            currentType = newTypePrefix;
         }
 
         document.addEventListener('keydown', (e) => {
             const viewer = document.getElementById('fullscreenView');
             if (!viewer.classList.contains('active')) return;
 
-            if (e.key === 'Escape') closeFullscreen();
-            if (e.key === 'ArrowLeft') navigateFullscreen(-1);
-            if (e.key === 'ArrowRight') navigateFullscreen(1);
+            if (e.key === 'Escape' || e.key === 'Backspace') {
+                e.preventDefault();
+                closeFullscreen();
+            }
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                navigateFullscreen(-1);
+            }
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                navigateFullscreen(1);
+            }
         });
 
         const menuToggle = document.getElementById('menuToggle');

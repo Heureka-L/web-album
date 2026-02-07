@@ -78,15 +78,6 @@ def init_db():
         )
     ''')
 
-    conn.execute('ALTER TABLE users ADD COLUMN album_path TEXT').execute('')
-    conn.commit()
-    conn.close()
-
-
- sqlite3.OperationalError:
-        pass
-
-    conn.commit()
     conn.close()
 
 

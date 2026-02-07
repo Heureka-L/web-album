@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理 - 网页相册</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>👥 用户管理</h1>
+            <div class="header-actions">
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">返回相册</a>
+            </div>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <main>
+            <section class="add-user-section">
+                <h2>添加新用户</h2>
+                <form method="POST" action="{{ url_for('add_user') }}" class="add-user-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="new_username">用户名</label>
+                            <input type="text" id="new_username" name="username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="new_password">密码</label>
+                            <input type="password" id="new_password" name="password" required minlength="6">
+                        </div>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" name="is_admin">
+                            管理员权限
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">添加用户</button>
+                </form>
+            </section>
+
+            <section class="users-list-section">
+                <h2>现有用户</h2>
+                <div class="users-grid">
+                    {% for user in users %}
+                    <div class="user-card">
+                        <div class="user-avatar">
+                            {% if user.is_admin %}
+                            <span class="role-badge admin">👑</span>
+                            {% else %}
+                            <span class="role-badge user">👤</span>
+                            {% endif %}
+                        </div>
+                        <div class="user-info">
+                            <h3>{{ user.username }}</h3>
+                            <div class="user-meta">
+                                <span class="role">
+                                    {% if user.is_admin %}管理员{% else %}普通用户{% endif %}
+                                </span>
+                                <span class="created">{{ user.created_at[:19] }}</span>
+                            </div>
+                        </div>
+                        {% if user.id != current_user.id %}
+                        <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}" class="delete-form">
+                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('确定要删除用户 {{ user.username }} 吗？')">
+                                删除
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Flask 网页相册 &copy; 2024</p>
+        </footer>
+    </div>
+</body>
+</html>

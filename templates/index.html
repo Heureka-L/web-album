@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网页相册</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📁 网页相册</h1>
+            <div class="user-info">
+                <span>{{ current_user.username }}</span>
+                {% if current_user.is_admin %}
+                <a href="{{ url_for('users') }}" class="btn btn-small">用户管理</a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}" class="btn btn-small btn-danger">退出</a>
+            </div>
+        </header>
+
+        <nav class="breadcrumb">
+            {% for item in breadcrumb %}
+            <a href="{{ url_for('index', path=item.path) }}">{{ item.name }}</a>
+            {% if not loop.last %}<span class="separator">/</span>{% endif %}
+            {% endfor %}
+        </nav>
+
+        <div class="stats-bar">
+            <span>文件夹: {{ dirs|length }}</span>
+            <span>文件: {{ files|length }}</span>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <main>
+            {% if dirs %}
+            <section class="file-section">
+                <h2>📂 文件夹</h2>
+                <div class="file-grid">
+                    {% for dir in dirs %}
+                    <div class="file-item dir-item">
+                        <a href="{{ url_for('index', path=dir.path) }}" class="file-link">
+                            <div class="file-icon">📁</div>
+                            <div class="file-name">{{ dir.name }}</div>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
+            {% if files %}
+            <section class="file-section">
+                <h2>📄 文件</h2>
+
+                {% set categories = {'图片': [], '视频': [], '文档': [], '其他': []} %}
+                {% for file in files %}
+                    {% set _ = categories[file.category].append(file) %}
+                {% endfor %}
+
+                {% for category, category_files in categories.items() %}
+                    {% if category_files %}
+                    <h3>{{ category }}</h3>
+                    <div class="file-grid">
+                        {% for file in category_files %}
+                        <div class="file-item">
+                            {% if category == '图片' %}
+                            <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link" target="_blank">
+                                <img src="{{ url_for('view_file', filename=file.path) }}" class="file-preview" alt="{{ file.name }}">
+                                <div class="file-name">{{ file.name }}</div>
+                            </a>
+                            {% elif category == '视频' %}
+                            <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link" target="_blank">
+                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23ddd'/%3E%3Ctext x='50' y='50' text-anchor='middle' dy='.3em' font-size='40'%3E🎬%3C/text%3E%3C/svg%3E" class="file-preview" alt="视频">
+                                <span class="video-badge">▶</span>
+                                <div class="file-name">{{ file.name }}</div>
+                            </a>
+                            {% else %}
+                            <a href="{{ url_for('download_file', filename=file.path) }}" class="file-link">
+                                <div class="file-icon">
+                                    {% if category == '文档' %}📄{% else %}📦{% endif %}
+                                </div>
+                                <div class="file-name">{{ file.name }}</div>
+                            </a>
+                            {% endif %}
+                            <div class="file-meta">
+                                <span class="file-size">{{ file.size_formatted }}</span>
+                                <a href="{{ url_for('download_file', filename=file.path) }}" class="download-btn" title="下载">⬇</a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </section>
+            {% endif %}
+
+            {% if not dirs and not files %}
+            <div class="empty-state">
+                <div class="empty-icon">📭</div>
+                <p>此文件夹为空</p>
+                <p class="empty-hint">请将文件上传到 uploads 文件夹</p>
+            </div>
+            {% endif %}
+        </main>
+
+        <footer>
+            <p>Flask 网页相册 &copy; 2024</p>
+        </footer>
+    </div>
+
+    <script>
+        function previewImage(img) {
+            if (img.naturalWidth > 200 || img.naturalHeight > 200) {
+                img.style.cursor = 'zoom-in';
+                img.title = '点击在新窗口打开';
+            }
+        }
+
+        document.querySelectorAll('.file-preview img').forEach(img => {
+            img.onload = () => previewImage(img);
+        });
+    </script>
+</body>
+</html>

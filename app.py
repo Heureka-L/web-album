@@ -1,0 +1,398 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Flask 网页相册应用
+支持浏览、预览和下载服务器上的图片、视频和其他文件
+包含用户登录系统
+"""
+
+import os
+from flask import Flask, render_template, send_from_directory, request, jsonify, redirect, url_for, flash
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
+from pathlib import Path
+import sqlite3
+import datetime
+
+app = Flask(__name__)
+app.secret_key = 'your-secret-key-change-this-in-production'
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+app.config['DATABASE'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.db')
+
+# 初始化 Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = '请先登录'
+
+# 文件分类
+ALLOWED_EXTENSIONS = {
+    '图片': {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'},
+    '视频': {'.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm'},
+    '文档': {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt'},
+    '其他': {'.zip', '.rar', '.7z', '.tar', '.gz'}
+}
+
+# 确保上传目录存在
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+
+# ==================== 用户系统 ====================
+
+class User(UserMixin):
+    def __init__(self, id, username, is_admin=False):
+        self.id = id
+        self.username = username
+        self.is_admin = is_admin
+
+    @staticmethod
+    def get(user_id):
+        conn = get_db()
+        user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+        conn.close()
+        if user:
+            return User(user['id'], user['username'], user['is_admin'])
+        return None
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.get(user_id)
+
+
+def get_db():
+    conn = sqlite3.connect(app.config['DATABASE'])
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = get_db()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            is_admin INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+
+def has_admin():
+    conn = get_db()
+    count = conn.execute('SELECT COUNT(*) as count FROM users WHERE is_admin = 1').fetchone()['count']
+    conn.close()
+    return count > 0
+
+
+def require_admin(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for('login'))
+        if not current_user.is_admin:
+            flash('需要管理员权限', 'error')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+# ==================== 文件管理 ====================
+
+def get_file_info(file_path):
+    try:
+        stat = os.stat(file_path)
+        size = stat.st_size
+        mtime = stat.st_mtime
+        return {
+            'name': os.path.basename(file_path),
+            'path': os.path.relpath(file_path, app.config['UPLOAD_FOLDER']),
+            'size': size,
+            'size_mb': round(size / (1024 * 1024), 2),
+            'modified': mtime,
+            'modified_formatted': datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S'),
+            'is_dir': os.path.isdir(file_path)
+        }
+    except Exception as e:
+        print(f"获取文件信息错误: {e}")
+        return None
+
+
+def classify_file(filename):
+    ext = os.path.splitext(filename)[1].lower()
+    for category, extensions in ALLOWED_EXTENSIONS.items():
+        if ext in extensions:
+            return category
+    return '其他'
+
+
+def format_size(size_bytes):
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.2f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.2f} TB"
+
+
+def list_files(relative_path=''):
+    target_path = os.path.join(app.config['UPLOAD_FOLDER'], relative_path)
+
+    if not os.path.exists(target_path):
+        return [], []
+
+    if not os.path.isdir(target_path):
+        return [], []
+
+    try:
+        entries = os.listdir(target_path)
+        entries.sort(key=lambda x: x.lower())
+
+        dirs = []
+        files = []
+
+        for entry in entries:
+            full_path = os.path.join(target_path, entry)
+            info = get_file_info(full_path)
+            if info:
+                if info['is_dir']:
+                    dirs.append(info)
+                else:
+                    info['category'] = classify_file(entry)
+                    info['size_formatted'] = format_size(info['size'])
+                    files.append(info)
+
+        return dirs, files
+    except PermissionError:
+        return [], []
+
+
+def get_breadcrumb(relative_path):
+    parts = relative_path.split(os.sep) if relative_path else []
+    breadcrumb = [{'name': '根目录', 'path': ''}]
+    current_path = ''
+    for part in parts:
+        if part:
+            current_path = os.path.join(current_path, part) if current_path else part
+            breadcrumb.append({'name': part, 'path': current_path})
+    return breadcrumb
+
+
+# ==================== 路由 ====================
+
+@app.route('/')
+@login_required
+def index():
+    base_path = request.args.get('path', '')
+    dirs, files = list_files(base_path)
+    breadcrumb = get_breadcrumb(base_path)
+    return render_template('index.html',
+                         dirs=dirs,
+                         files=files,
+                         current_path=base_path,
+                         breadcrumb=breadcrumb)
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
+    if not has_admin():
+        return render_template('setup.html')
+
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        if not username or not password:
+            flash('用户名和密码不能为空', 'error')
+            return render_template('login.html')
+
+        conn = get_db()
+        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        conn.close()
+
+        if user and check_password_hash(user['password'], password):
+            user_obj = User(user['id'], user['username'], user['is_admin'])
+            login_user(user_obj)
+            flash(f'欢迎回来，{username}！', 'success')
+            return redirect(url_for('index'))
+        else:
+            flash('用户名或密码错误', 'error')
+
+    return render_template('login.html')
+
+
+@app.route('/setup', methods=['POST'])
+def setup():
+    if has_admin():
+        return redirect(url_for('login'))
+
+    username = request.form.get('username')
+    password = request.form.get('password')
+    confirm_password = request.form.get('confirm_password')
+
+    if not username or not password:
+        flash('用户名和密码不能为空', 'error')
+        return render_template('setup.html')
+
+    if password != confirm_password:
+        flash('两次输入的密码不一致', 'error')
+        return render_template('setup.html')
+
+    if len(password) < 6:
+        flash('密码至少需要6个字符', 'error')
+        return render_template('setup.html')
+
+    try:
+        conn = get_db()
+        conn.execute(
+            'INSERT INTO users (username, password, is_admin) VALUES (?, ?, 1)',
+            (username, generate_password_hash(password))
+        )
+        conn.commit()
+        conn.close()
+
+        flash('管理员账户创建成功，请登录', 'success')
+        return redirect(url_for('login'))
+    except sqlite3.IntegrityError:
+        flash('用户名已存在', 'error')
+        return render_template('setup.html')
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('已成功登出', 'info')
+    return redirect(url_for('login'))
+
+
+@app.route('/users')
+@login_required
+@require_admin
+def users():
+    conn = get_db()
+    users = conn.execute('SELECT * FROM users ORDER BY created_at DESC').fetchall()
+    conn.close()
+    return render_template('users.html', users=users)
+
+
+@app.route('/users/add', methods=['POST'])
+@login_required
+@require_admin
+def add_user():
+    username = request.form.get('username')
+    password = request.form.get('password')
+    is_admin = request.form.get('is_admin') == 'on'
+
+    if not username or not password:
+        flash('用户名和密码不能为空', 'error')
+        return redirect(url_for('users'))
+
+    if len(password) < 6:
+        flash('密码至少需要6个字符', 'error')
+        return redirect(url_for('users'))
+
+    try:
+        conn = get_db()
+        conn.execute(
+            'INSERT INTO users (username, password, is_admin) VALUES (?, ?, ?)',
+            (username, generate_password_hash(password), 1 if is_admin else 0)
+        )
+        conn.commit()
+        conn.close()
+        flash(f'用户 {username} 添加成功', 'success')
+    except sqlite3.IntegrityError:
+        flash('用户名已存在', 'error')
+
+    return redirect(url_for('users'))
+
+
+@app.route('/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@require_admin
+def delete_user(user_id):
+    if user_id == current_user.id:
+        flash('不能删除自己', 'error')
+        return redirect(url_for('users'))
+
+    conn = get_db()
+    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+    flash('用户删除成功', 'success')
+    return redirect(url_for('users'))
+
+
+@app.route('/view/<path:filename>')
+@login_required
+def view_file(filename):
+    target_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if not os.path.exists(target_path):
+        return "文件不存在", 404
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+@app.route('/download/<path:filename>')
+@login_required
+def download_file(filename):
+    target_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if not os.path.exists(target_path):
+        return "文件不存在", 404
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+
+
+@app.route('/api/files')
+@login_required
+def api_files():
+    base_path = request.args.get('path', '')
+    dirs, files = list_files(base_path)
+    return jsonify({
+        'dirs': dirs,
+        'files': files,
+        'current_path': base_path
+    })
+
+
+@app.route('/api/stats')
+@login_required
+def api_stats():
+    total_files = sum(
+        1 for root, dirs, files in os.walk(app.config['UPLOAD_FOLDER'])
+        for file in files
+    )
+    total_dirs = sum(
+        1 for root, dirs, files in os.walk(app.config['UPLOAD_FOLDER'])
+        for dir in dirs
+    )
+    total_size = sum(
+        os.path.getsize(os.path.join(root, file))
+        for root, dirs, files in os.walk(app.config['UPLOAD_FOLDER'])
+        for file in files
+    )
+    return jsonify({
+        'total_files': total_files,
+        'total_dirs': total_dirs,
+        'total_size': total_size,
+        'total_size_formatted': format_size(total_size)
+    })
+
+
+# ==================== 启动 ====================
+
+if __name__ == '__main__':
+    init_db()
+
+    print("=" * 60)
+    print("Flask 网页相册应用")
+    print("=" * 60)
+    print(f"上传目录: {app.config['UPLOAD_FOLDER']}")
+    print(f"数据库: {app.config['DATABASE']}")
+    print("访问地址: http://localhost:5000")
+    print("=" * 60)
+    app.run(host='0.0.0.0', port=5000, debug=False)

@@ -7,7 +7,7 @@ Heureka Album - 网页相册应用
 """
 
 import os
-from flask import Flask, render_template, send_from_directory, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, send_from_directory, request, jsonify, redirect, url_for, flash, send_file
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -19,6 +19,7 @@ app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this-in-production'
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 app.config['DATABASE'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.db')
+app.config['THUMBNAIL_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'thumbnails')
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -33,6 +34,7 @@ ALLOWED_EXTENSIONS = {
 }
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['THUMBNAIL_FOLDER'], exist_ok=True)
 
 
 # ==================== 用户系统 ====================
@@ -407,6 +409,44 @@ def download_file(filename):
         return "文件不存在", 404
 
     return send_from_directory(os.path.dirname(target_path), os.path.basename(target_path), as_attachment=True)
+
+
+@app.route('/thumbnail/<path:filename>')
+@login_required
+def get_video_thumbnail(filename):
+    ext = os.path.splitext(filename)[1].lower()
+    
+    if ext not in ALLOWED_EXTENSIONS['视频']:
+        return redirect(url_for('view_file', filename=filename))
+    
+    thumbnail_filename = os.path.splitext(filename)[0] + '.jpg'
+    thumbnail_path = os.path.join(app.config['THUMBNAIL_FOLDER'], thumbnail_filename)
+    
+    if not os.path.exists(thumbnail_path):
+        upload_folder = get_user_upload_folder(current_user.id)
+        video_path = os.path.join(upload_folder, filename)
+        
+        if not os.path.exists(video_path):
+            video_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        if not os.path.exists(video_path):
+            return redirect(url_for('static', filename='style.css'))
+        
+        try:
+            import cv2
+            cap = cv2.VideoCapture(video_path)
+            ret, frame = cap.read()
+            if ret:
+                cv2.imwrite(thumbnail_path, frame)
+            cap.release()
+        except Exception as e:
+            print(f"无法生成缩略图: {e}")
+            return redirect(url_for('static', filename='style.css'))
+    
+    if os.path.exists(thumbnail_path):
+        return send_file(thumbnail_path, mimetype='image/jpeg')
+    else:
+        return redirect(url_for('static', filename='style.css'))
 
 
 @app.route('/api/files')

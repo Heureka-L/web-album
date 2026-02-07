@@ -438,6 +438,9 @@ def settings():
 @app.route('/view/<path:filename>')
 @login_required
 def view_file(filename):
+    base_path = os.path.dirname(filename) if os.sep in filename else ''
+    file_name = os.path.basename(filename)
+    
     upload_folder = get_user_upload_folder(current_user.id)
     target_path = os.path.join(upload_folder, filename)
 
@@ -447,7 +450,17 @@ def view_file(filename):
     if not os.path.exists(target_path):
         return "文件不存在", 404
 
-    return send_from_directory(os.path.dirname(target_path), os.path.basename(target_path))
+    file_ext = os.path.splitext(file_name)[1].lower()
+    content_type = 'application/octet-stream'
+    
+    if file_ext in {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}:
+        content_type = 'image/jpeg'
+    elif file_ext == '.svg':
+        content_type = 'image/svg+xml'
+    elif file_ext in {'.mp4', '.avi', '.mov', '.mkv', '.webm'}:
+        content_type = 'video/mp4'
+
+    return send_from_directory(os.path.dirname(target_path), os.path.basename(target_path), mimetype=content_type)
 
 
 @app.route('/download/<path:filename>')

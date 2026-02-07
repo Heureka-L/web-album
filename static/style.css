@@ -859,10 +859,90 @@ body {
     }
 }
 
+.pagination {
+    margin-top: 30px;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.pagination-info {
+    color: var(--text-light);
+    font-size: 0.9rem;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.page-btn,
+.page-link,
+.page-current,
+.page-ellipsis {
+    padding: 8px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--text-dark);
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.page-btn:hover,
+.page-link:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.page-btn.disabled,
+.page-btn.disabled:hover {
+    background: var(--bg-light);
+    color: var(--text-light);
+    border-color: var(--border-color);
+    cursor: not-allowed;
+}
+
+.page-current {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    font-weight: 600;
+}
+
+.page-ellipsis {
+    border: none;
+    padding: 8px 12px;
+    color: var(--text-light);
+}
+
 @media (min-width: 992px) {
     .file-grid {
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     }
+
+    .file-preview {
+        height: 150px;
+    }
+}
+
+@media (min-width: 1200px) {
+    .file-grid {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+    .file-preview {
+        height: 170px;
+    }
+}
 
     .file-preview {
         height: 150px;

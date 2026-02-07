@@ -54,3 +54,5 @@ Thumbs.db
 # Project specific
 .sisyphus/
 *.pid
+cookies.txt
+nohup.out

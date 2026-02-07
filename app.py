@@ -52,7 +52,8 @@ class User(UserMixin):
         user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
         conn.close()
         if user:
-            return User(user['id'], user['username'], user['is_admin'], user.get('album_path'))
+            album_path = user['album_path'] if 'album_path' in user.keys() else None
+            return User(user['id'], user['username'], user['is_admin'], album_path)
         return None
 
 
@@ -69,6 +70,7 @@ def get_db():
 
 def init_db():
     conn = get_db()
+
     conn.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,6 +81,17 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    try:
+        columns = conn.execute("PRAGMA table_info(users)").fetchall()
+        column_names = [col[1] for col in columns]
+
+        if 'album_path' not in column_names:
+            conn.execute('ALTER TABLE users ADD COLUMN album_path TEXT')
+            conn.commit()
+            print("数据库迁移完成：已添加 album_path 列")
+    except Exception as e:
+        print(f"数据库迁移警告: {e}")
 
     conn.close()
 
@@ -238,7 +251,8 @@ def login():
         conn.close()
 
         if user and check_password_hash(user['password'], password):
-            user_obj = User(user['id'], user['username'], user['is_admin'], user.get('album_path'))
+            album_path = user['album_path'] if 'album_path' in user.keys() else None
+            user_obj = User(user['id'], user['username'], user['is_admin'], album_path)
             login_user(user_obj)
             flash(f'欢迎回来，{username}！', 'success')
             return redirect(url_for('index'))

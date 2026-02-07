@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>登录 - 网页相册</title>
+    <title>登录 - Heureka Album</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="login-page">
     <div class="login-container">
         <div class="login-header">
-            <h1>🔐 网页相册</h1>
-            <p>请登录以访问文件</p>
+            <h1>🖼️ Heureka Album</h1>
+            <p>请登录以访问您的相册</p>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}

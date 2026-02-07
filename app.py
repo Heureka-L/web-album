@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Flask 网页相册应用
+Heureka Album - 网页相册应用
 支持浏览、预览和下载服务器上的图片、视频和其他文件
-包含用户登录系统
+包含用户登录系统和个性化相册路径设置
 """
 
 import os
@@ -20,13 +20,11 @@ app.secret_key = 'your-secret-key-change-this-in-production'
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 app.config['DATABASE'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.db')
 
-# 初始化 Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = '请先登录'
 
-# 文件分类
 ALLOWED_EXTENSIONS = {
     '图片': {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'},
     '视频': {'.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm'},
@@ -34,17 +32,17 @@ ALLOWED_EXTENSIONS = {
     '其他': {'.zip', '.rar', '.7z', '.tar', '.gz'}
 }
 
-# 确保上传目录存在
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 
 # ==================== 用户系统 ====================
 
 class User(UserMixin):
-    def __init__(self, id, username, is_admin=False):
+    def __init__(self, id, username, is_admin=False, album_path=None):
         self.id = id
         self.username = username
         self.is_admin = is_admin
+        self.album_path = album_path
 
     @staticmethod
     def get(user_id):
@@ -52,7 +50,7 @@ class User(UserMixin):
         user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
         conn.close()
         if user:
-            return User(user['id'], user['username'], user['is_admin'])
+            return User(user['id'], user['username'], user['is_admin'], user.get('album_path'))
         return None
 
 
@@ -75,9 +73,19 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             is_admin INTEGER DEFAULT 0,
+            album_path TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    conn.execute('ALTER TABLE users ADD COLUMN album_path TEXT').execute('')
+    conn.commit()
+    conn.close()
+
+
+ sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -101,16 +109,31 @@ def require_admin(f):
     return decorated_function
 
 
+def get_user_upload_folder(user_id):
+    conn = get_db()
+    user = conn.execute('SELECT album_path FROM users WHERE id = ?', (user_id,)).fetchone()
+    conn.close()
+
+    if user and user['album_path']:
+        album_path = user['album_path']
+        if os.path.isabs(album_path):
+            return album_path
+        else:
+            return os.path.join(os.path.dirname(os.path.abspath(__file__)), album_path)
+    else:
+        return app.config['UPLOAD_FOLDER']
+
+
 # ==================== 文件管理 ====================
 
-def get_file_info(file_path):
+def get_file_info(file_path, base_folder):
     try:
         stat = os.stat(file_path)
         size = stat.st_size
         mtime = stat.st_mtime
         return {
             'name': os.path.basename(file_path),
-            'path': os.path.relpath(file_path, app.config['UPLOAD_FOLDER']),
+            'path': os.path.relpath(file_path, base_folder),
             'size': size,
             'size_mb': round(size / (1024 * 1024), 2),
             'modified': mtime,
@@ -138,8 +161,13 @@ def format_size(size_bytes):
     return f"{size_bytes:.2f} TB"
 
 
-def list_files(relative_path=''):
-    target_path = os.path.join(app.config['UPLOAD_FOLDER'], relative_path)
+def list_files(relative_path='', user_id=None):
+    if user_id:
+        upload_folder = get_user_upload_folder(user_id)
+    else:
+        upload_folder = app.config['UPLOAD_FOLDER']
+
+    target_path = os.path.join(upload_folder, relative_path)
 
     if not os.path.exists(target_path):
         return [], []
@@ -156,7 +184,7 @@ def list_files(relative_path=''):
 
         for entry in entries:
             full_path = os.path.join(target_path, entry)
-            info = get_file_info(full_path)
+            info = get_file_info(full_path, upload_folder)
             if info:
                 if info['is_dir']:
                     dirs.append(info)
@@ -187,7 +215,7 @@ def get_breadcrumb(relative_path):
 @login_required
 def index():
     base_path = request.args.get('path', '')
-    dirs, files = list_files(base_path)
+    dirs, files = list_files(base_path, current_user.id)
     breadcrumb = get_breadcrumb(base_path)
     return render_template('index.html',
                          dirs=dirs,
@@ -217,7 +245,7 @@ def login():
         conn.close()
 
         if user and check_password_hash(user['password'], password):
-            user_obj = User(user['id'], user['username'], user['is_admin'])
+            user_obj = User(user['id'], user['username'], user['is_admin'], user.get('album_path'))
             login_user(user_obj)
             flash(f'欢迎回来，{username}！', 'success')
             return redirect(url_for('index'))
@@ -329,29 +357,72 @@ def delete_user(user_id):
     return redirect(url_for('users'))
 
 
+@app.route('/settings', methods=['GET', 'POST'])
+@login_required
+def settings():
+    if request.method == 'POST':
+        album_path = request.form.get('album_path', '').strip()
+
+        if album_path:
+            if os.path.isabs(album_path):
+                target_path = album_path
+            else:
+                target_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), album_path)
+
+            if not os.path.exists(target_path):
+                flash('指定的路径不存在', 'error')
+                return redirect(url_for('settings'))
+
+            if not os.path.isdir(target_path):
+                flash('指定的路径不是一个文件夹', 'error')
+                return redirect(url_for('settings'))
+
+        conn = get_db()
+        conn.execute('UPDATE users SET album_path = ? WHERE id = ?', (album_path or None, current_user.id))
+        conn.commit()
+        conn.close()
+
+        flash('设置保存成功', 'success')
+        return redirect(url_for('settings'))
+
+    return render_template('settings.html')
+
+
 @app.route('/view/<path:filename>')
 @login_required
 def view_file(filename):
-    target_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    upload_folder = get_user_upload_folder(current_user.id)
+    target_path = os.path.join(upload_folder, filename)
+
+    if not os.path.exists(target_path):
+        target_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
     if not os.path.exists(target_path):
         return "文件不存在", 404
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+    return send_from_directory(os.path.dirname(target_path), os.path.basename(target_path))
 
 
 @app.route('/download/<path:filename>')
 @login_required
 def download_file(filename):
-    target_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    upload_folder = get_user_upload_folder(current_user.id)
+    target_path = os.path.join(upload_folder, filename)
+
+    if not os.path.exists(target_path):
+        target_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
     if not os.path.exists(target_path):
         return "文件不存在", 404
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+
+    return send_from_directory(os.path.dirname(target_path), os.path.basename(target_path), as_attachment=True)
 
 
 @app.route('/api/files')
 @login_required
 def api_files():
     base_path = request.args.get('path', '')
-    dirs, files = list_files(base_path)
+    dirs, files = list_files(base_path, current_user.id)
     return jsonify({
         'dirs': dirs,
         'files': files,
@@ -362,19 +433,10 @@ def api_files():
 @app.route('/api/stats')
 @login_required
 def api_stats():
-    total_files = sum(
-        1 for root, dirs, files in os.walk(app.config['UPLOAD_FOLDER'])
-        for file in files
-    )
-    total_dirs = sum(
-        1 for root, dirs, files in os.walk(app.config['UPLOAD_FOLDER'])
-        for dir in dirs
-    )
-    total_size = sum(
-        os.path.getsize(os.path.join(root, file))
-        for root, dirs, files in os.walk(app.config['UPLOAD_FOLDER'])
-        for file in files
-    )
+    upload_folder = get_user_upload_folder(current_user.id)
+    total_files = sum(1 for root, dirs, files in os.walk(upload_folder) for file in files)
+    total_dirs = sum(1 for root, dirs, files in os.walk(upload_folder) for dir in dirs)
+    total_size = sum(os.path.getsize(os.path.join(root, file)) for root, dirs, files in os.walk(upload_folder) for file in files)
     return jsonify({
         'total_files': total_files,
         'total_dirs': total_dirs,
@@ -383,13 +445,11 @@ def api_stats():
     })
 
 
-# ==================== 启动 ====================
-
 if __name__ == '__main__':
     init_db()
 
     print("=" * 60)
-    print("Flask 网页相册应用")
+    print("Heureka Album - 网页相册应用")
     print("=" * 60)
     print(f"上传目录: {app.config['UPLOAD_FOLDER']}")
     print(f"数据库: {app.config['DATABASE']}")

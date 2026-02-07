@@ -3,89 +3,130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>用户管理 - 网页相册</title>
+    <title>用户管理 - Heureka Album</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>👥 用户管理</h1>
-            <div class="header-actions">
-                <a href="{{ url_for('index') }}" class="btn btn-secondary">返回相册</a>
+    <div class="layout-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>🖼️ Heureka Album</h2>
             </div>
-        </header>
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('index') }}" class="nav-item">
+                    <span class="nav-icon">📁</span>
+                    <span class="nav-text">相册</span>
+                </a>
+                <a href="{{ url_for('users') }}" class="nav-item active">
+                    <span class="nav-icon">👥</span>
+                    <span class="nav-text">用户管理</span>
+                </a>
+                <a href="{{ url_for('settings') }}" class="nav-item">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-text">设置</span>
+                </a>
+                <a href="{{ url_for('logout') }}" class="nav-item">
+                    <span class="nav-icon">🚪</span>
+                    <span class="nav-text">退出登录</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <span class="user-info">👤 {{ current_user.username }}</span>
+            </div>
+        </aside>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="flash-messages">
-                    {% for category, message in messages %}
-                        <div class="flash-{{ category }}">{{ message }}</div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
+        <main class="main-content">
+            <header class="mobile-header">
+                <button class="menu-toggle" id="menuToggle">☰</button>
+                <h1>👥 用户管理</h1>
+            </header>
 
-        <main>
-            <section class="add-user-section">
-                <h2>添加新用户</h2>
-                <form method="POST" action="{{ url_for('add_user') }}" class="add-user-form">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="new_username">用户名</label>
-                            <input type="text" id="new_username" name="username" required>
+            <div class="content-wrapper">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="flash-messages">
+                            {% for category, message in messages %}
+                                <div class="flash-{{ category }}">{{ message }}</div>
+                            {% endfor %}
                         </div>
-                        <div class="form-group">
-                            <label for="new_password">密码</label>
-                            <input type="password" id="new_password" name="password" required minlength="6">
-                        </div>
-                    </div>
-                    <div class="form-group checkbox-group">
-                        <label>
-                            <input type="checkbox" name="is_admin">
-                            管理员权限
-                        </label>
-                    </div>
-                    <button type="submit" class="btn btn-primary">添加用户</button>
-                </form>
-            </section>
+                    {% endif %}
+                {% endwith %}
 
-            <section class="users-list-section">
-                <h2>现有用户</h2>
-                <div class="users-grid">
-                    {% for user in users %}
-                    <div class="user-card">
-                        <div class="user-avatar">
-                            {% if user.is_admin %}
-                            <span class="role-badge admin">👑</span>
-                            {% else %}
-                            <span class="role-badge user">👤</span>
-                            {% endif %}
-                        </div>
-                        <div class="user-info">
-                            <h3>{{ user.username }}</h3>
-                            <div class="user-meta">
-                                <span class="role">
-                                    {% if user.is_admin %}管理员{% else %}普通用户{% endif %}
-                                </span>
-                                <span class="created">{{ user.created_at[:19] }}</span>
+                <section class="users-section">
+                    <div class="card">
+                        <h2>添加新用户</h2>
+                        <form method="POST" action="{{ url_for('add_user') }}" class="form-inline">
+                            <div class="form-group">
+                                <input type="text" id="new_username" name="username" placeholder="用户名" required>
                             </div>
-                        </div>
-                        {% if user.id != current_user.id %}
-                        <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}" class="delete-form">
-                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('确定要删除用户 {{ user.username }} 吗？')">
-                                删除
-                            </button>
+                            <div class="form-group">
+                                <input type="password" id="new_password" name="password" placeholder="密码（至少6个字符）" required minlength="6">
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label style="display: flex; align-items: center; gap: 8px; white-space: nowrap;">
+                                    <input type="checkbox" name="is_admin" style="width: auto;">
+                                    <span>管理员权限</span>
+                                </label>
+                            </div>
+                            <button type="submit" class="btn btn-primary">添加</button>
                         </form>
-                        {% endif %}
                     </div>
-                    {% endfor %}
-                </div>
-            </section>
-        </main>
 
-        <footer>
-            <p>Flask 网页相册 &copy; 2024</p>
-        </footer>
+                    <div class="card">
+                        <h2>现有用户</h2>
+                        <div class="users-list">
+                            {% for user in users %}
+                            <div class="user-item">
+                                <div class="user-avatar">
+                                    {% if user.is_admin %}
+                                    <span class="role-badge admin">👑</span>
+                                    {% else %}
+                                    <span class="role-badge user">👤</span>
+                                    {% endif %}
+                                </div>
+                                <div class="user-info">
+                                    <h3>{{ user.username }}</h3>
+                                    <div class="user-meta">
+                                        <span class="role">
+                                            {% if user.is_admin %}管理员{% else %}普通用户{% endif %}
+                                        </span>
+                                        <span class="created">{{ user.created_at[:19] }}</span>
+                                        {% if user.album_path %}
+                                        <span class="album-path">路径: {{ user.album_path }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% if user.id != current_user.id %}
+                                <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}" class="delete-form">
+                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('确定要删除用户 {{ user.username }} 吗？')">
+                                        删除
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
     </div>
+
+    <script>
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.querySelector('.sidebar');
+
+        if (menuToggle) {
+            menuToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('active');
+            });
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!sidebar.contains(e.target) && !menuToggle.contains(e.target)) {
+                sidebar.classList.remove('active');
+            }
+        });
+    </script>
 </body>
 </html>

@@ -3,126 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>网页相册</title>
+    <title>Heureka Album</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>📁 网页相册</h1>
-            <div class="user-info">
-                <span>{{ current_user.username }}</span>
-                {% if current_user.is_admin %}
-                <a href="{{ url_for('users') }}" class="btn btn-small">用户管理</a>
-                {% endif %}
-                <a href="{{ url_for('logout') }}" class="btn btn-small btn-danger">退出</a>
+    <div class="layout-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>🖼️ Heureka Album</h2>
             </div>
-        </header>
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('index') }}" class="nav-item active">
+                    <span class="nav-icon">📁</span>
+                    <span class="nav-text">相册</span>
+                </a>
+                {% if current_user.is_admin %}
+                <a href="{{ url_for('users') }}" class="nav-item">
+                    <span class="nav-icon">👥</span>
+                    <span class="nav-text">用户管理</span>
+                </a>
+                {% endif %}
+                <a href="{{ url_for('settings') }}" class="nav-item">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-text">设置</span>
+                </a>
+                <a href="{{ url_for('logout') }}" class="nav-item">
+                    <span class="nav-icon">🚪</span>
+                    <span class="nav-text">退出登录</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <span class="user-info">👤 {{ current_user.username }}</span>
+            </div>
+        </aside>
 
-        <nav class="breadcrumb">
-            {% for item in breadcrumb %}
-            <a href="{{ url_for('index', path=item.path) }}">{{ item.name }}</a>
-            {% if not loop.last %}<span class="separator">/</span>{% endif %}
-            {% endfor %}
-        </nav>
+        <main class="main-content">
+            <header class="mobile-header">
+                <button class="menu-toggle" id="menuToggle">☰</button>
+                <h1>📁 相册</h1>
+            </header>
 
-        <div class="stats-bar">
-            <span>文件夹: {{ dirs|length }}</span>
-            <span>文件: {{ files|length }}</span>
-        </div>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="flash-messages">
-                    {% for category, message in messages %}
-                        <div class="flash-{{ category }}">{{ message }}</div>
+            <div class="content-wrapper">
+                <nav class="breadcrumb">
+                    {% for item in breadcrumb %}
+                    <a href="{{ url_for('index', path=item.path) }}">{{ item.name }}</a>
+                    {% if not loop.last %}<span class="separator">/</span>{% endif %}
                     {% endfor %}
+                </nav>
+
+                <div class="stats-bar">
+                    <span>📂 文件夹: {{ dirs|length }}</span>
+                    <span>📄 文件: {{ files|length }}</span>
                 </div>
-            {% endif %}
-        {% endwith %}
 
-        <main>
-            {% if dirs %}
-            <section class="file-section">
-                <h2>📂 文件夹</h2>
-                <div class="file-grid">
-                    {% for dir in dirs %}
-                    <div class="file-item dir-item">
-                        <a href="{{ url_for('index', path=dir.path) }}" class="file-link">
-                            <div class="file-icon">📁</div>
-                            <div class="file-name">{{ dir.name }}</div>
-                        </a>
-                    </div>
-                    {% endfor %}
-                </div>
-            </section>
-            {% endif %}
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="flash-messages">
+                            {% for category, message in messages %}
+                                <div class="flash-{{ category }}">{{ message }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
 
-            {% if files %}
-            <section class="file-section">
-                <h2>📄 文件</h2>
-
-                {% set categories = {'图片': [], '视频': [], '文档': [], '其他': []} %}
-                {% for file in files %}
-                    {% set _ = categories[file.category].append(file) %}
-                {% endfor %}
-
-                {% for category, category_files in categories.items() %}
-                    {% if category_files %}
-                    <h3>{{ category }}</h3>
+                <section class="file-section">
+                    {% if dirs %}
+                    <h2>📂 文件夹</h2>
                     <div class="file-grid">
-                        {% for file in category_files %}
-                        <div class="file-item">
-                            {% if category == '图片' %}
-                            <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link" target="_blank">
-                                <img src="{{ url_for('view_file', filename=file.path) }}" class="file-preview" alt="{{ file.name }}">
-                                <div class="file-name">{{ file.name }}</div>
+                        {% for dir in dirs %}
+                        <div class="file-item dir-item">
+                            <a href="{{ url_for('index', path=dir.path) }}" class="file-link">
+                                <div class="file-icon">📁</div>
+                                <div class="file-name">{{ dir.name }}</div>
                             </a>
-                            {% elif category == '视频' %}
-                            <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link" target="_blank">
-                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23ddd'/%3E%3Ctext x='50' y='50' text-anchor='middle' dy='.3em' font-size='40'%3E🎬%3C/text%3E%3C/svg%3E" class="file-preview" alt="视频">
-                                <span class="video-badge">▶</span>
-                                <div class="file-name">{{ file.name }}</div>
-                            </a>
-                            {% else %}
-                            <a href="{{ url_for('download_file', filename=file.path) }}" class="file-link">
-                                <div class="file-icon">
-                                    {% if category == '文档' %}📄{% else %}📦{% endif %}
-                                </div>
-                                <div class="file-name">{{ file.name }}</div>
-                            </a>
-                            {% endif %}
-                            <div class="file-meta">
-                                <span class="file-size">{{ file.size_formatted }}</span>
-                                <a href="{{ url_for('download_file', filename=file.path) }}" class="download-btn" title="下载">⬇</a>
-                            </div>
                         </div>
                         {% endfor %}
                     </div>
                     {% endif %}
-                {% endfor %}
-            </section>
-            {% endif %}
 
-            {% if not dirs and not files %}
-            <div class="empty-state">
-                <div class="empty-icon">📭</div>
-                <p>此文件夹为空</p>
-                <p class="empty-hint">请将文件上传到 uploads 文件夹</p>
+                    {% if files %}
+                    <h2>📄 文件</h2>
+
+                    {% set categories = {'图片': [], '视频': [], '文档': [], '其他': []} %}
+                    {% for file in files %}
+                        {% set _ = categories[file.category].append(file) %}
+                    {% endfor %}
+
+                    {% for category, category_files in categories.items() %}
+                        {% if category_files %}
+                        <h3>{{ category }}</h3>
+                        <div class="file-grid">
+                            {% for file in category_files %}
+                            <div class="file-item">
+                                {% if category == '图片' %}
+                                <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link"
+                                   onclick="openFullscreen(this); return false;">
+                                    <img src="{{ url_for('view_file', filename=file.path) }}" class="file-preview" alt="{{ file.name }}">
+                                    <div class="file-name">{{ file.name }}</div>
+                                    <div class="fullscreen-hint">⛶</div>
+                                </a>
+                                {% elif category == '视频' %}
+                                <a href="{{ url_for('view_file', filename=file.path) }}" class="file-link">
+                                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23ddd'/%3E%3Ctext x='50' y='50' text-anchor='middle' dy='.3em' font-size='40'%3E🎬%3C/text%3E%3C/svg%3E" class="file-preview" alt="视频">
+                                    <span class="video-badge">▶</span>
+                                    <div class="file-name">{{ file.name }}</div>
+                                </a>
+                                {% else %}
+                                <a href="{{ url_for('download_file', filename=file.path) }}" class="file-link">
+                                    <div class="file-icon">
+                                        {% if category == '文档' %}📄{% else %}📦{% endif %}
+                                    </div>
+                                    <div class="file-name">{{ file.name }}</div>
+                                </a>
+                                {% endif %}
+                                <div class="file-meta">
+                                    <span class="file-size">{{ file.size_formatted }}</span>
+                                    <a href="{{ url_for('download_file', filename=file.path) }}" class="download-btn" title="下载">⬇</a>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                    {% endif %}
+
+                    {% if not dirs and not files %}
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>此文件夹为空</p>
+                        <p class="empty-hint">请将文件上传到相册目录</p>
+                    </div>
+                    {% endif %}
+                </section>
             </div>
-            {% endif %}
         </main>
+    </div>
 
-        <footer>
-            <p>Flask 网页相册 &copy; 2024</p>
-        </footer>
+    <div class="fullscreen-view" id="fullscreenView">
+        <button class="fullscreen-close" onclick="closeFullscreen()">&times;</button>
+        <button class="fullscreen-prev" onclick="navigateFullscreen(-1)">❮</button>
+        <img id="fullscreenImage" src="" alt="">
+        <button class="fullscreen-next" onclick="navigateFullscreen(1)">❯</button>
+        <div class="fullscreen-info" id="fullscreenInfo"></div>
     </div>
 
     <script>
+        function openFullscreen(element) {
+            const img = element.querySelector('.file-preview');
+            const link = element.querySelector('a').getAttribute('href');
+            const name = element.querySelector('.file-name').textContent;
+
+            const viewer = document.getElementById('fullscreenView');
+            const fullImg = document.getElementById('fullscreenImage');
+            const info = document.getElementById('fullscreenInfo');
+
+            fullImg.src = link;
+            info.textContent = name;
+
+            viewer.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeFullscreen() {
+            const viewer = document.getElementById('fullscreenView');
+            viewer.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function navigateFullscreen(direction) {
+            const images = document.querySelectorAll('.file-item img.file-preview');
+            const currentSrc = document.getElementById('fullscreenImage').src;
+            let currentIndex = 0;
+
+            images.forEach((img, index) => {
+                if (img.src === currentSrc) {
+                    currentIndex = index;
+                }
+            });
+
+            const newIndex = (currentIndex + direction + images.length) % images.length;
+            const newImg = images[newIndex];
+            const parent = newImg.closest('.file-item');
+            const name = parent.querySelector('.file-name').textContent;
+
+            document.getElementById('fullscreenImage').src = newImg.src;
+            document.getElementById('fullscreenInfo').textContent = name;
+        }
+
+        document.addEventListener('keydown', (e) => {
+            const viewer = document.getElementById('fullscreenView');
+            if (!viewer.classList.contains('active')) return;
+
+            if (e.key === 'Escape') closeFullscreen();
+            if (e.key === 'ArrowLeft') navigateFullscreen(-1);
+            if (e.key === 'ArrowRight') navigateFullscreen(1);
+        });
+
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.querySelector('.sidebar');
+
+        if (menuToggle) {
+            menuToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('active');
+            });
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!sidebar.contains(e.target) && !menuToggle.contains(e.target)) {
+                sidebar.classList.remove('active');
+            }
+        });
+
         function previewImage(img) {
             if (img.naturalWidth > 200 || img.naturalHeight > 200) {
                 img.style.cursor = 'zoom-in';
-                img.title = '点击在新窗口打开';
+                img.title = '点击全屏查看';
             }
         }
 

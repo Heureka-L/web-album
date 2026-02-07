@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设置 - Heureka Album</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="layout-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>🖼️ Heureka Album</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('index') }}" class="nav-item">
+                    <span class="nav-icon">📁</span>
+                    <span class="nav-text">相册</span>
+                </a>
+                {% if current_user.is_admin %}
+                <a href="{{ url_for('users') }}" class="nav-item">
+                    <span class="nav-icon">👥</span>
+                    <span class="nav-text">用户管理</span>
+                </a>
+                {% endif %}
+                <a href="{{ url_for('settings') }}" class="nav-item active">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-text">设置</span>
+                </a>
+                <a href="{{ url_for('logout') }}" class="nav-item">
+                    <span class="nav-icon">🚪</span>
+                    <span class="nav-text">退出登录</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <span class="user-info">👤 {{ current_user.username }}</span>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="mobile-header">
+                <button class="menu-toggle" id="menuToggle">☰</button>
+                <h1>⚙️ 设置</h1>
+            </header>
+
+            <div class="content-wrapper">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="flash-messages">
+                            {% for category, message in messages %}
+                                <div class="flash-{{ category }}">{{ message }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
+
+                <section class="settings-section">
+                    <div class="settings-card">
+                        <h2>相册路径设置</h2>
+                        <form method="POST" class="settings-form">
+                            <div class="form-group">
+                                <label for="album_path">相册存储路径</label>
+                                <input type="text" id="album_path" name="album_path"
+                                       placeholder="例如: /path/to/your/album 或 uploads"
+                                       value="{{ current_user.album_path or '' }}">
+                                <small class="hint">留空使用默认路径。可以是绝对路径或相对于项目目录的路径。</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary">保存设置</button>
+                        </form>
+                    </div>
+
+                    <div class="settings-card">
+                        <h2>当前路径</h2>
+                        <div class="info-box">
+                            <p><strong>默认路径:</strong> {{ url_for('static', filename='uploads') }}</p>
+                            <p><strong>当前路径:</strong> {{ current_user.album_path or '未设置（使用默认路径）' }}</p>
+                        </div>
+                    </div>
+
+                    {% if current_user.is_admin %}
+                    <div class="settings-card">
+                        <h2>管理员快捷操作</h2>
+                        <div class="admin-actions">
+                            <a href="{{ url_for('users') }}" class="btn btn-secondary">
+                                <span class="btn-icon">👥</span>
+                                管理用户
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.querySelector('.sidebar');
+
+        if (menuToggle) {
+            menuToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('active');
+            });
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!sidebar.contains(e.target) && !menuToggle.contains(e.target)) {
+                sidebar.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>
